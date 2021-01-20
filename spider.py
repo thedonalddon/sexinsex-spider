@@ -12,6 +12,10 @@ import xlwt
 import datetime
 import xlrd
 import xlsxwriter
+import os
+import requests
+from PIL import Image
+import shutil
 
 # 定义全局变量和搜索方法
 threadlist = []
@@ -32,11 +36,13 @@ pages = int(pages)
 xlsname = ''
 now = str(datetime.datetime.now())
 xls = now[:-7] + '.xls'
+savepath = xls
 def main():
     threadlist = getThreadList(baseurl)
     content = getContent()
-    savepath = xls
     saveData(content, savepath)
+    downloadImg()
+    os.remove(xls)
 
 
 # 爬帖子列表
@@ -132,10 +138,10 @@ def saveData(content, savepath):
     book = xlwt.Workbook(encoding="utf-8")
     sheet = book.add_sheet('帖子列表', cell_overwrite_ok=True)
     for i in range(0, len(content)):
-        print('第%d条数据写入中' % i)
         sheet.write(i, 0, content[i])
     book.save(savepath)
 
+    # 复制A列jpg到B列
     booka = xlrd.open_workbook(savepath, 'r')  # 打开.xlsx文件
     sheeta = booka.sheets()[0]  # 打开表格中第一个sheet
     editedxls = 'edited-'+savepath
@@ -152,15 +158,92 @@ def saveData(content, savepath):
             sheetb.write(i, 1, rowAcontent)
     bookb.close()
 
-    print('数据已保存为 %s 。Congrats! 下一步：执行convertimg.py ' % editedxls)
+    print('爬取完成！数据已保存在： %s 。准备下载所有图片... ' % editedxls)
     # 批量下载图片
 
+# 下载editedxls里的所有图片，并放进同名文件夹
+def downloadImg():
+    editedxls = 'edited-'+savepath
+    filename = editedxls
+    newdir = filename.strip('.xls')
+    a = xlrd.open_workbook(filename, 'r')  # 打开.xlsx文件
+    sht = a.sheets()[0]  # 打开表格中第一个sheet
+    nrows = sht.nrows  # 获取总行数
 
+    path = os.getcwd()
+    isExists = os.path.exists(newdir)  # 新建同名文件夹
+    if isExists:
+        shutil.rmtree(newdir)
+    os.mkdir(newdir)
+    spath = os.path.join(path, newdir)
+    spath1 = os.path.join(spath + '/')
+    print('正在保存到目录：' + spath1)
 
+    for i in range(0, nrows):
+        url = sht.cell(i, 1).value  # 遍历B列所有数据
+        if url != '':
+            try:
+                f = requests.get(url)
+            except Exception as result:
+                print('第 %d 行图片下载失败' % (i + 1))
+                print(result)
+                continue
+            ii = str(i)  # 按照下载顺序（行号）构造文件名
+            dir = ii + "." + 'jpg'  # 构造完整文件名称
+            with open(spath1 + dir, "wb") as code:
+                code.write(f.content)  # 保存文件
+            print(url)  # 打印当前的 URL
+            jindu = i * 100 // nrows  # 计算下载进度
+            print('正在下载第 %d 张图片，共 %d 张图片，下载进度：%d' % (i + 1, nrows, jindu), '%')  # 显示下载进度
 
+    print('所有图片下载完成！')
+    print('*' * 30)
 
+    # 将图片插入新的xls
+    imglist = []
+    imglist = os.listdir(spath1)
+    # print('imglist文件名列表:', imglist)
+    # print('imglist文件数量', len(imglist))
 
+    booka = xlrd.open_workbook(savepath, 'r')  # 打开链接列表文件
+    sheeta = booka.sheets()[0]  # 打开表格中第一个sheet
 
+    book = xlsxwriter.Workbook('img_' + filename + 'x')  # 准备写入的新文件
+    sheet = book.add_worksheet('img')
+    sheet.set_column(1, 1, width=5000)
+
+    nrows = sheeta.nrows  # 获取总行数
+    rowAlist = []
+
+    for i in range(0, nrows):
+        rowAcontent = sheeta.cell(i, 0).value  # 遍历booka.A列所有数据
+        sheet.write(i, 0, rowAcontent)
+
+    i = 0
+    while i <= len(imglist) - 1:
+        imgname = imglist[i]
+        imgname = imgname[:-4]  # 去后缀
+        imgnumber = str(imgname)
+        place = 'B%s' % imgnumber
+        imgfilename = os.path.join(spath1, imglist[i])
+        i += 1
+        # print(imgname)
+        # print(imgnumber)
+        # print(place)
+        # print(imgfilename)
+        try:
+            with Image.open(imgfilename) as imgsize:
+                imgheight = imgsize.height
+            sheet.set_row((int(imgnumber) - 1), int(imgheight))
+            sheet.insert_image(place, imgfilename)
+            print('正在把 %s 添加进新的xls' % imgname)
+        except Exception as result:
+            print('添加失败')
+            print(result)
+            continue
+    book.close()
+    print('%d 张图片全部写入完成！结果保存在：%s ' % (nrows, imgfilename))
+    os.remove(editedxls)
 
 
 if __name__ == "__main__":
