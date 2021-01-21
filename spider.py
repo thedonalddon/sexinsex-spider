@@ -32,9 +32,9 @@ findTitle = re.compile(r'</a>(.*?)</h1>')
 findTorrent = re.compile(r'<a href="attachment.php\?aid=(.*?)" target=')
 
 baseurl = input("输入要爬取的地址（如亚洲原创http://sexinsex.net/bbs/forum-143-）（或亚洲转帖http://sexinsex.net/bbs/forum-25-）：")  # 填入爬取地址
-startpage = input('从第几页开始爬？（建议至少为2）') # 填入起始页
+startpage = input('从第几页开始爬？Starting page? （建议至少为2）') # 填入起始页
 startpage = int(startpage)
-pages = input('从第 %d 页开始爬，要爬到几页？' % startpage)  # 填入页数
+pages = input('从第 %d 页开始爬，要爬到几页？Ending page? ' % startpage)  # 填入页数
 pages = int(pages)
 
 
